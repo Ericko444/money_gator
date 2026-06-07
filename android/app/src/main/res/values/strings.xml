@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- This is the missing line causing the error -->
+    <string name="accessibility_service_description">Money Gatekeeper tracks app usage to ensure financial tracking.</string>
+</resources>
