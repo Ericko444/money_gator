@@ -5,13 +5,17 @@ import '../main.dart'; // To access the global 'isar' variable
 class DashboardStats {
   final double totalMonth;
   final double totalToday;
+  final double totalWeek;
   final Map<String, double> categoryBreakdown;
+  final Map<String, double> weekCategoryBreakdown;
   final List<DailyTrend> weeklyTrend;
 
   DashboardStats({
     required this.totalMonth,
     required this.totalToday,
+    required this.totalWeek,
     required this.categoryBreakdown,
+    required this.weekCategoryBreakdown,
     required this.weeklyTrend,
   });
 }
@@ -32,25 +36,29 @@ class DashboardService {
     final startOfMonth = DateTime(now.year, now.month, 1);
     final startOfToday = DateTime(now.year, now.month, now.day);
     final endOfToday = DateTime(now.year, now.month, now.day, 23, 59, 59);
+    // ISO week starts on Monday (weekday 1)
+    final startOfWeek = DateTime(now.year, now.month, now.day - (now.weekday - 1));
 
-    // 2. Get Totals (Fast Aggregation)
-    // Sum for MONTH
+    // 2. Get Totals
     final totalMonth = await isar.transactions
         .filter()
         .timestampBetween(startOfMonth, endOfToday)
         .amountProperty()
         .sum();
 
-    // Sum for TODAY
     final totalToday = await isar.transactions
         .filter()
         .timestampBetween(startOfToday, endOfToday)
         .amountProperty()
         .sum();
 
-    // 3. Get Category Breakdown (For Pie Chart)
-    // We fetch all transactions for this month to group them manually
-    // (Isar doesn't have 'groupBy' yet, but it's fast enough for this)
+    final totalWeek = await isar.transactions
+        .filter()
+        .timestampBetween(startOfWeek, endOfToday)
+        .amountProperty()
+        .sum();
+
+    // 3. Get Category Breakdown (month)
     final monthTx = await isar.transactions
         .filter()
         .timestampBetween(startOfMonth, endOfToday)
@@ -61,10 +69,20 @@ class DashboardService {
       categories[tx.category] = (categories[tx.category] ?? 0) + tx.amount;
     }
 
-    // 4. Get Weekly Trend (Last 7 Days)
+    // 4. Get Category Breakdown (current ISO week)
+    final weekTx = await isar.transactions
+        .filter()
+        .timestampBetween(startOfWeek, endOfToday)
+        .findAll();
+
+    final Map<String, double> weekCategories = {};
+    for (var tx in weekTx) {
+      weekCategories[tx.category] = (weekCategories[tx.category] ?? 0) + tx.amount;
+    }
+
+    // 5. Get Weekly Trend (Last 7 Days)
     List<DailyTrend> weeklyData = [];
 
-    // Loop backwards 6 days + today
     for (int i = 6; i >= 0; i--) {
       final date = now.subtract(Duration(days: i));
       final dayStart = DateTime(date.year, date.month, date.day);
@@ -76,18 +94,15 @@ class DashboardService {
           .amountProperty()
           .sum();
 
-      // Format Day Name (e.g., "Mon")
-      // Simple switch to avoid 'intl' dependency overhead here if you want,
-      // but since we have intl, let's just use weekday index
-      String dayLabel = _getWeekdayLabel(date.weekday);
-
-      weeklyData.add(DailyTrend(dayLabel, daySum));
+      weeklyData.add(DailyTrend(_getWeekdayLabel(date.weekday), daySum));
     }
 
     return DashboardStats(
       totalMonth: totalMonth,
       totalToday: totalToday,
+      totalWeek: totalWeek,
       categoryBreakdown: categories,
+      weekCategoryBreakdown: weekCategories,
       weeklyTrend: weeklyData,
     );
   }
