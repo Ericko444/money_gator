@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart'; // <--- The Magic Paintbrush
+import 'package:fl_chart/fl_chart.dart';
 import 'services/dashboard_service.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -11,7 +11,8 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   late Future<DashboardStats> _statsFuture;
-  int _touchedIndex = -1; // For Pie Chart animation
+  int _touchedIndex = -1;
+  int _touchedWeekIndex = -1;
 
   @override
   void initState() {
@@ -50,30 +51,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 1. SUMMARY CARDS
+                // Row 1: This Month + This Week
                 Row(
                   children: [
                     Expanded(child: _buildStatCard("This Month", stats.totalMonth, Colors.blueAccent)),
                     const SizedBox(width: 16),
-                    Expanded(child: _buildStatCard("Today", stats.totalToday, _getTodayColor(stats.totalToday))),
+                    Expanded(child: _buildStatCard("This Week", stats.totalWeek, Colors.purpleAccent)),
                   ],
                 ),
 
+                const SizedBox(height: 16),
+
+                // Row 2: Today (full width)
+                _buildStatCard("Today", stats.totalToday, _getTodayColor(stats.totalToday)),
+
                 const SizedBox(height: 40),
 
-                // 2. PIE CHART (Where it went)
+                // Monthly pie chart
                 const Text("Where it went", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 20),
                 SizedBox(
                   height: 250,
                   child: stats.categoryBreakdown.isEmpty
                       ? _buildEmptyState("No spending this month yet.")
-                      : _buildPieChart(stats.categoryBreakdown),
+                      : _buildPieChart(stats.categoryBreakdown, _touchedIndex, (i) => setState(() => _touchedIndex = i)),
                 ),
 
                 const SizedBox(height: 40),
 
-                // 3. BAR CHART (Trend)
+                // Weekly category pie chart
+                const Text("This Week by Category", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 20),
+                SizedBox(
+                  height: 250,
+                  child: stats.weekCategoryBreakdown.isEmpty
+                      ? _buildEmptyState("No spending this week yet.")
+                      : _buildPieChart(stats.weekCategoryBreakdown, _touchedWeekIndex, (i) => setState(() => _touchedWeekIndex = i)),
+                ),
+
+                const SizedBox(height: 40),
+
+                // 7-day bar chart
                 const Text("Last 7 Days", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 20),
                 SizedBox(
@@ -90,20 +108,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // --- HELPER: PIE CHART ---
-  Widget _buildPieChart(Map<String, double> data) {
+  Widget _buildPieChart(Map<String, double> data, int touchedIndex, void Function(int) onTouch) {
     final List<PieChartSectionData> sections = [];
     int index = 0;
 
     data.forEach((category, amount) {
-      final isTouched = index == _touchedIndex;
+      final isTouched = index == touchedIndex;
       final fontSize = isTouched ? 20.0 : 14.0;
-      final radius = isTouched ? 110.0 : 100.0; // Pop out effect
+      final radius = isTouched ? 110.0 : 100.0;
 
       sections.add(PieChartSectionData(
         color: _getCategoryColor(category),
         value: amount,
-        title: '${(amount / 1000).toStringAsFixed(1)}k', // Show e.g., 1.5k
+        title: '${(amount / 1000).toStringAsFixed(1)}k',
         radius: radius,
         titleStyle: TextStyle(fontSize: fontSize, fontWeight: FontWeight.bold, color: Colors.white),
         badgeWidget: isTouched ? _buildBadge(category) : null,
@@ -116,13 +133,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
       PieChartData(
         pieTouchData: PieTouchData(
           touchCallback: (FlTouchEvent event, pieTouchResponse) {
-            setState(() {
-              if (!event.isInterestedForInteractions || pieTouchResponse == null || pieTouchResponse.touchedSection == null) {
-                _touchedIndex = -1;
-                return;
-              }
-              _touchedIndex = pieTouchResponse.touchedSection!.touchedSectionIndex;
-            });
+            if (!event.isInterestedForInteractions || pieTouchResponse == null || pieTouchResponse.touchedSection == null) {
+              onTouch(-1);
+              return;
+            }
+            onTouch(pieTouchResponse.touchedSection!.touchedSectionIndex);
           },
         ),
         sectionsSpace: 2,
@@ -140,7 +155,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // --- HELPER: BAR CHART ---
   Widget _buildBarChart(List<DailyTrend> trends) {
     return BarChart(
       BarChartData(
@@ -149,7 +163,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           show: true,
           topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)), // Hide amounts on Y axis to keep clean
+          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -157,10 +171,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 if (value.toInt() >= 0 && value.toInt() < trends.length) {
                   return Padding(
                     padding: const EdgeInsets.only(top: 8.0),
-                    child: Text(
-                      trends[value.toInt()].dayName,
-                      style: const TextStyle(color: Colors.grey, fontSize: 12),
-                    ),
+                    child: Text(trends[value.toInt()].dayName, style: const TextStyle(color: Colors.grey, fontSize: 12)),
                   );
                 }
                 return const Text('');
@@ -170,21 +181,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         borderData: FlBorderData(show: false),
         barGroups: trends.asMap().entries.map((entry) {
-          final index = entry.key;
           final data = entry.value;
           return BarChartGroupData(
-            x: index,
+            x: entry.key,
             barRods: [
               BarChartRodData(
                 toY: data.amount,
-                color: data.amount > 1500 ? Colors.redAccent : Colors.blueAccent, // Red bar if high spending
+                color: data.amount > 1500 ? Colors.redAccent : Colors.blueAccent,
                 width: 16,
                 borderRadius: BorderRadius.circular(4),
-                backDrawRodData: BackgroundBarChartRodData(
-                  show: true,
-                  toY: 3000, // Max height reference
-                  color: Colors.grey[900],
-                ),
+                backDrawRodData: BackgroundBarChartRodData(show: true, toY: 3000, color: Colors.grey[900]),
               ),
             ],
           );
@@ -193,7 +199,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // --- UTILS ---
   Color _getCategoryColor(String category) {
     switch (category) {
       case 'Food': return Colors.orangeAccent;
@@ -216,11 +221,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildStatCard(String title, double amount, Color color) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.grey[900],
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
