@@ -3,6 +3,7 @@ import 'package:isar/isar.dart';
 import 'package:intl/intl.dart';
 import 'main.dart'; // Access global 'isar'
 import 'collections/transaction.dart';
+import 'services/api_service.dart';
 
 class HistoryScreen extends StatelessWidget {
   const HistoryScreen({super.key});
@@ -79,6 +80,7 @@ class HistoryScreen extends StatelessWidget {
                     await isar.writeTxn(() async {
                       await isar.transactions.delete(tx.id);
                     });
+                    ApiService.deleteTransaction(tx.id); // fire-and-forget
                     if (context.mounted) Navigator.pop(context);
                   },
                   child: const Text("Delete", style: TextStyle(color: Colors.red)),
@@ -94,6 +96,7 @@ class HistoryScreen extends StatelessWidget {
                       tx.category = selectedCategory;
                       await isar.transactions.put(tx);
                     });
+                    ApiService.updateTransaction(tx); // fire-and-forget
 
                     if (context.mounted) Navigator.pop(context);
                   },

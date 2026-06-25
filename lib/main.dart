@@ -8,7 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 
 import 'collections/transaction.dart';
-1
+import 'services/api_service.dart';
 import 'history_screen.dart';
 import 'dashboard_screen.dart';
 
@@ -156,6 +156,7 @@ class _GatekeeperScreenState extends State<GatekeeperScreen> {
     await isar.writeTxn(() async {
       await isar.transactions.put(newTx);
     });
+    ApiService.syncTransaction(newTx); // fire-and-forget
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('last_paid_timestamp', now.millisecondsSinceEpoch);
