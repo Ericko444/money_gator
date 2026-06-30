@@ -11,6 +11,7 @@ import 'collections/transaction.dart';
 import 'services/api_service.dart';
 import 'history_screen.dart';
 import 'dashboard_screen.dart';
+import 'chat_screen.dart';
 
 late Isar isar;
 
@@ -75,13 +76,13 @@ class MainApp extends StatefulWidget {
 }
 
 class _MainAppState extends State<MainApp> {
-  int _currentIndex = 0; // 0 = Keypad, 1 = History
+  int _currentIndex = 0;
 
-  // The pages
   final List<Widget> _pages = [
     const GatekeeperScreen(),
     const HistoryScreen(),
     const DashboardScreen(),
+    const ChatScreen(),
   ];
 
   @override
@@ -93,6 +94,7 @@ class _MainAppState extends State<MainApp> {
         backgroundColor: Colors.black,
         body: _pages[_currentIndex],
         bottomNavigationBar: BottomNavigationBar(
+          type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.grey[900],
           selectedItemColor: Colors.blueAccent,
           unselectedItemColor: Colors.grey,
@@ -106,6 +108,7 @@ class _MainAppState extends State<MainApp> {
             BottomNavigationBarItem(icon: Icon(Icons.dialpad), label: 'Input'),
             BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
             BottomNavigationBarItem(icon: Icon(Icons.pie_chart), label: 'Reality'),
+            BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
           ],
         ),
       ),
