@@ -12,6 +12,7 @@ import 'services/api_service.dart';
 import 'history_screen.dart';
 import 'dashboard_screen.dart';
 import 'chat_screen.dart';
+import 'settings_screen.dart';
 
 late Isar isar;
 
@@ -83,6 +84,7 @@ class _MainAppState extends State<MainApp> {
     const HistoryScreen(),
     const DashboardScreen(),
     const ChatScreen(),
+    const SettingsScreen(),
   ];
 
   @override
@@ -109,6 +111,7 @@ class _MainAppState extends State<MainApp> {
             BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
             BottomNavigationBarItem(icon: Icon(Icons.pie_chart), label: 'Reality'),
             BottomNavigationBarItem(icon: Icon(Icons.chat_bubble_outline), label: 'Chat'),
+            BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
           ],
         ),
       ),
