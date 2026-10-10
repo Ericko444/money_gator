@@ -7,8 +7,10 @@ import 'package:path_provider/path_provider.dart';
 
 class LlmService {
   static const _modelFileName = 'gemma3-1b-q4.gguf';
+  // bartowski/gemma-3-1b-it-GGUF now requires HF auth (401) and was silently
+  // being "downloaded" as its ~29-byte error body. unsloth's repo is public.
   static const _modelUrl =
-      'https://huggingface.co/bartowski/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf';
+      'https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf';
 
   LlamaParent? _llama;
 
@@ -26,14 +28,29 @@ class LlmService {
     return File(path).existsSync();
   }
 
+  Future<void> deleteModel() async {
+    final path = await _modelPath();
+    final file = File(path);
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
+
   /// Emits download progress from 0.0 to 1.0.
   /// Downloads to a .tmp file and renames on completion to avoid partial reads.
+  /// Throws if the stream ends before the expected byte count is reached,
+  /// so a dropped connection can never masquerade as a complete model file.
   Stream<double> downloadModel() async* {
     final path = await _modelPath();
     final tmpPath = '$path.tmp';
 
     final request = http.Request('GET', Uri.parse(_modelUrl));
     final response = await request.send();
+    if (response.statusCode != 200) {
+      final body = await response.stream.bytesToString();
+      throw Exception(
+          'Download failed: HTTP ${response.statusCode} — $body');
+    }
     final total = response.contentLength ?? 0;
 
     final sink = File(tmpPath).openWrite();
@@ -49,6 +66,12 @@ class LlmService {
       await sink.close();
     }
 
+    if (total > 0 && received != total) {
+      await File(tmpPath).delete();
+      throw Exception(
+          'Download incomplete: received $received of $total bytes.');
+    }
+
     await File(tmpPath).rename(path);
     yield 1.0;
   }
@@ -57,7 +80,10 @@ class LlmService {
     final path = await _modelPath();
     final loadCmd = LlamaLoad(
       path: path,
-      modelParams: ModelParams(),
+      // nGpuLayers=0: force CPU-only. Android has no working GPU backend here,
+      // and leaving the package default (99) stalls model load indefinitely
+      // trying to init a GPU backend that never comes up.
+      modelParams: ModelParams()..nGpuLayers = 0,
       contextParams: ContextParams(),
       samplingParams: SamplerParams(),
     );

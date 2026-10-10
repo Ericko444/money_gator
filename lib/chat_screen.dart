@@ -42,6 +42,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _checkModel() async {
     setState(() => _modelState = _ModelState.checking);
     final ready = await _llm.isModelReady;
+    if (!mounted) return;
     setState(() => _modelState = ready ? _ModelState.downloaded : _ModelState.notDownloaded);
   }
 
@@ -52,10 +53,14 @@ class _ChatScreenState extends State<ChatScreen> {
     });
     try {
       await for (final p in _llm.downloadModel()) {
+        if (!mounted) return;
         setState(() => _downloadProgress = p);
       }
+      if (!mounted) return;
       setState(() => _modelState = _ModelState.downloaded);
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('Model download failed: $e\n$st');
+      if (!mounted) return;
       setState(() {
         _modelState = _ModelState.error;
         _errorMessage = e.toString();
@@ -67,13 +72,25 @@ class _ChatScreenState extends State<ChatScreen> {
     setState(() => _modelState = _ModelState.loading);
     try {
       await _llm.loadModel();
+      if (!mounted) return;
       setState(() => _modelState = _ModelState.ready);
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('Model load failed: $e\n$st');
+      if (!mounted) return;
       setState(() {
         _modelState = _ModelState.error;
         _errorMessage = e.toString();
       });
     }
+  }
+
+  Future<void> _deleteAndRetryDownload() async {
+    await _llm.deleteModel();
+    if (!mounted) return;
+    setState(() {
+      _modelState = _ModelState.notDownloaded;
+      _errorMessage = null;
+    });
   }
 
   Future<void> _sendMessage() async {
@@ -95,20 +112,28 @@ class _ChatScreenState extends State<ChatScreen> {
 
       _tokenSub = _llm.generate(prompt).listen(
         (token) {
+          if (!mounted) return;
           setState(() {
             final last = _messages.last;
             _messages[_messages.length - 1] = last.copyWith(text: last.text + token);
           });
           _scrollToBottom();
         },
-        onError: (e) => setState(() {
-          _messages[_messages.length - 1] =
-              _ChatMessage(isUser: false, text: 'Error: $e');
-          _isGenerating = false;
-        }),
-        onDone: () => setState(() => _isGenerating = false),
+        onError: (e) {
+          if (!mounted) return;
+          setState(() {
+            _messages[_messages.length - 1] =
+                _ChatMessage(isUser: false, text: 'Error: $e');
+            _isGenerating = false;
+          });
+        },
+        onDone: () {
+          if (!mounted) return;
+          setState(() => _isGenerating = false);
+        },
       );
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _messages[_messages.length - 1] =
             _ChatMessage(isUser: false, text: 'Error: $e');
@@ -261,6 +286,11 @@ class _ChatScreenState extends State<ChatScreen> {
             ElevatedButton(
               onPressed: _checkModel,
               child: const Text('Retry'),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: _deleteAndRetryDownload,
+              child: const Text('Delete & Re-download Model'),
             ),
           ],
         ),
